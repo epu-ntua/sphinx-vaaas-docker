@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+namespace: sphinx
+name: backend
+labels:
+app: vaaas
+spec:
+replicas: 1
+selector:
+matchLabels:
+app: vaaas
+strategy:
+type: Recreate
+template:
+metadata:
+labels:
+app: vaaas
+spec:
+hostNetwork: true
+imagePullSecrets:
+- name: epu-ntua-repository
+nodeSelector:
+kubernetes.io/hostname: "kubenode20"
+terminationGracePeriodSeconds: 5
+containers:
+- name: redis
+imagePullPolicy: Always
+image: "docker.io/bitnami/redis:6.0-debian-10"
+securityContext:
+runAsUser: 0
+ports:
+- name: redis
+containerPort: 6379
+env:
+- name: ALLOW_EMPTY_PASSWORD
+value: "yes"
+- name: REDIS_DISABLE_COMMANDS
+value: "FLUSHDB,FLUSHALL"
+volumeMounts:
+- name: sphinx-data
+mountPath: /bitnami/redis/data/
+subPath: redis-data
+
+- name: logic
+imagePullPolicy: Always
+image: "registry.sphinx-epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-logic:v0.k8s"
+ports:
+- name: logic
+containerPort: 8005
+
+- name: vaaas
+imagePullPolicy: Always
+image: "registry.sphinx-repo.epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-core:v0.k8s"
+ports:
+- name: vaaas
+containerPort: 8003
+env:
+- name: MODE
+value: "prod"
+
+- name: database
+imagePullPolicy: Always
+image: "registry.sphinx-repo.epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-mongo:v0.k8s"
+ports:
+- name: database
+containerPort: 27017
+volumeMounts:
+- name: sphinx-data
+mountPath: /data/db/
+subPath: db-data
+env:
+- name: MONGO_INITDB_ROOT_USERNAME
+value: "root"
+- name: MONGO_INITDB_ROOT_PASSWORD
+value: "root"
+- name: MONGO_INITDB_DATABASE
+value: "vaaas"
+- name: MONGO_INITDB_USERNAME
+value: "vaaas"
+- name: MONGO_INITDB_PASSWORD
+value: "vaaas"
+
+- name: ip-scanner
+imagePullPolicy: Always
+image: "registry.sphinx-repo.epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-ip-scanner:v0.k8s"
+ports:
+- name: ip-scanner
+containerPort: 8001
+
+- name: assets
+imagePullPolicy: Always
+image: "registry.sphinx-repo.epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-assetmanager:v0.k8s"
+ports:
+- name: assets
+containerPort: 8002
+env:
+- name: MODE
+value: "prod"
+
+- name: vaaas-dashboard
+imagePullPolicy: Always
+image: "registry.sphinx-repo.epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-dashboard:v0.k8s"
+ports:
+- name: vaaas-dashboard
+containerPort: 9999
+env:
+- name: API_PORT
+value: "8888"
+- name: VAAAS_API_BASE_URL
+value: "10.0.1.220:8888"
+
+- name: proxy
+imagePullPolicy: Always
+image: "registry.sphinx-repo.epu-ntua/sphinx-project/vulnerability-assessment/vaaas-docker/vaaas-proxy:v0.k8s"
+ports:
+- name: logic
+containerPort: 80
+
+volumes:
+
+- name: sphinx-data
+persistentVolumeClaim:
+claimName: sphinx-data

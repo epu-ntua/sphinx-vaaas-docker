@@ -1,0 +1,98 @@
+version: '3.8'
+services:
+  redis:
+    image: "docker.io/bitnami/redis:6.0-debian-10"
+    container_name: "redis"
+    user: 'root'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    ports:
+      - "6379:6379"
+    volumes:
+      - "./redis_data:/bitnami/redis/data"
+    network_mode: host
+
+  logic:
+    build: logic/
+    container_name: "logic"
+    ports:
+      - "8005:8005"
+    network_mode: host
+
+  vaaas:
+    build: vaaas2/
+    container_name: "vaaas"
+    ports:
+      - "8003:8003"
+    depends_on:
+      - redis
+    environment:
+      - MODE=prod
+    network_mode: host
+
+  dashboard:
+    build: dashboard/
+    container_name: "dashboard"
+    ports:
+      - "9999:9999"
+    network_mode: host
+
+  database:
+    build: database/
+    container_name: "database"
+    restart: always
+    volumes:
+      - ./database/data/db/:/data/db/:rw
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+      - MONGO_INITDB_USERNAME=vaaas
+      - MONGO_INITDB_PASSWORD=vaaas
+      - MONGO_INITDB_DATABASE=vaaas
+#    env_file:
+#      - ./database/.env.database
+    ports:
+      - "27017:27017"
+    network_mode: host
+
+  ip_scanner:
+    build: ip_scanner/
+    container_name: "ip_scanner"
+    #    network_mode: host
+    #    extra_hosts:
+    #      - "assets:127.0.0.1"
+    ports:
+      - "8001:8001"
+    depends_on:
+      - assets_m
+    environment:
+      - MODE=prod
+    network_mode: host
+
+  assets_m:
+    build: assets/
+    container_name: "assets_m"
+    ports:
+      - "8002:8002"
+    depends_on:
+      - database
+    environment:
+      - MODE=prod
+    network_mode: host
+
+  proxy:
+    build: proxy/
+    #    extra_hosts:
+    #      - "vaaas:127.0.0.1"
+    #      - "ip_scanner:127.0.0.1"
+    ports:
+      - "8888:80"
+    network_mode: host
+
+volumes:
+  redis_data:
+    driver: local
+  db_data:
+    driver: local
+

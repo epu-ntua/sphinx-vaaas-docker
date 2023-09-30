@@ -1,0 +1,80 @@
+version: '3'
+services:
+  dnsdock:
+    image: tonistiigi/dnsdock
+    hostname: dnsdock
+    restart: always
+    ports:
+      #   - 8080:80
+      - 172.17.0.1:53:53/udp
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  proxy:
+    build: proxy/
+    links:
+      - vaaas
+      - api
+    dns:
+      - 172.17.0.1
+    ports:
+      - "8888:80"
+    depends_on:
+      - dnsdock
+    environment:
+      - DNSDOCK_ALIAS=proxy.docker
+
+  vaaas:
+    build: vaaas/
+    #    links:
+    #      - api
+    dns:
+      - 172.17.0.1
+    ports:
+      - "2222:22"
+      - "8080:9392"
+    depends_on:
+      - dnsdock
+    environment:
+      - DNSDOCK_ALIAS=vaaas.docker
+      #      - PASSWORD=admin
+      - SSHD=true
+      - HTTPS=false
+    volumes:
+      - gvm-data:/data
+
+  api:
+    build: api/
+    #    links:
+    #      - vaaas
+    dns:
+      #      - 8.8.8.8
+      - 172.17.0.1
+    ports:
+      - "8000:8000"
+    depends_on:
+      - dnsdock
+      - vaaas
+    environment:
+      - DNSDOCK_ALIAS=api.docker
+  #    healthcheck:
+  #      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/tasks"]
+  #      interval: 30s
+  #      timeout: 30s
+  #      retries: 5
+  dashboard:
+    build: dashboard/
+    dns:
+      - 172.17.0.1
+    ports:
+      - "9999:9080"
+    depends_on:
+      - dnsdock
+      - api
+      - proxy
+      - vaaas
+    environment:
+      environment:
+        - DNSDOCK_ALIAS=dashboard.docker
+volumes:
+  gvm-data:
